@@ -26,12 +26,12 @@ public:
         other.capacity_ = 0;
     }
 
-    RawMemory &operator=(RawMemory &&rhs) noexcept {
+    RawMemory& operator=(RawMemory &&rhs) noexcept {
         if (this != &rhs) {
-            buffer_ = rhs.buffer_;
-            capacity_ = rhs.capacity_;
-            rhs.buffer_ = nullptr;
+            Swap(rhs);
+            rhs.Deallocate(rhs.buffer_);
             rhs.capacity_ = 0;
+            rhs.buffer_ = nullptr;
         }
         return *this;
     }
@@ -126,6 +126,7 @@ public:
     //Инициализирует other всеми элементами other. Capacity_ и size_ равны other.size_.   
     Vector& operator=(Vector&& other) noexcept{
         if(this != &other){
+            
             data_ = std::move(other.data_);
             size_ = std::move(other.size_);
 
@@ -220,7 +221,12 @@ public:
         if(size_ == Capacity()){
             RawMemory<T> new_data{size_ == 0 ? 1 : size_ *2};
             new (new_data + size_) T(std::forward<Args>(args)...);
-            TransferAndSwap(new_data);
+            try{
+                TransferAndSwap(new_data);
+            }catch(...){
+                std::destroy_n(new_data.GetAddress() + size_, 1);
+                throw;
+            }
         }else{
             new (data_ + size_) T(std::forward<Args>(args)...);
         }
@@ -241,8 +247,13 @@ public:
                 std::uninitialized_move_n(begin() + num_position, size_ - num_position, new_data + num_position + 1);
 
             } else {
-                std::uninitialized_copy_n(begin(), num_position, new_data.GetAddress());
-                std::uninitialized_copy_n(begin() + num_position, size_ - num_position, new_data + num_position + 1);
+                try{
+                    std::uninitialized_copy_n(begin(), num_position, new_data.GetAddress());
+                    std::uninitialized_copy_n(begin() + num_position, size_ - num_position, new_data + num_position + 1);
+                }catch(...){
+                    std::destroy_n(new_data.GetAddress(), size_);
+                    throw;
+                }
             }
         
         std::destroy_n(begin(),size_);
@@ -256,9 +267,13 @@ public:
                 T temp(std::forward<Args>(args)...);
                 
                 new (end()) T(std::forward<T>(data_[size_ -1]));
-                // std::move_backward(begin() + num_position, end() - 1, begin() + num_position + 1);
+                try{
                 std::move_backward(begin() + num_position, end() - 1, end());
                 *(begin() + num_position) = std::forward<T>(temp);
+                }catch(...){
+                    std::destroy_n(end(),1);
+                    throw;
+                }
             }
         }
         ++size_;
@@ -266,10 +281,12 @@ public:
     }
     //Удаляет последний элемент из вектора
     void PopBack() noexcept{
+        assert(size_ > 0);
         std::destroy_n(data_ + size_ - 1, 1);
         --size_;
     }
     iterator Erase(const_iterator pos) noexcept(std::is_nothrow_move_assignable_v<T>){
+        assert(begin() <= pos && pos <= end());
         size_t num_position = pos - begin();
         if(pos == end()){
             PopBack();
