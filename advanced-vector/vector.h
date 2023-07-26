@@ -126,8 +126,7 @@ public:
     //Инициализирует other всеми элементами other. Capacity_ и size_ равны other.size_.   
     Vector& operator=(Vector&& other) noexcept{
         if(this != &other){
-            
-            data_ = std::move(other.data_);
+            data_ = std::move(other.data_); // RawMemory& operator=(RawMemory &&rhs) разрушает объекты other.data_
             size_ = std::move(other.size_);
 
             other.size_ = 0;
@@ -251,7 +250,7 @@ public:
                     std::uninitialized_copy_n(begin(), num_position, new_data.GetAddress());
                     std::uninitialized_copy_n(begin() + num_position, size_ - num_position, new_data + num_position + 1);
                 }catch(...){
-                    std::destroy_n(new_data.GetAddress(), size_);
+                    std::destroy_n(new_data.GetAddress(), num_position + 1);
                     throw;
                 }
             }
@@ -286,7 +285,7 @@ public:
         --size_;
     }
     iterator Erase(const_iterator pos) noexcept(std::is_nothrow_move_assignable_v<T>){
-        assert(begin() <= pos && pos <= end());
+        assert(begin() <= pos && pos < end());
         size_t num_position = pos - begin();
         if(pos == end()){
             PopBack();
