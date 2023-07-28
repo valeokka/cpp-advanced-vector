@@ -245,9 +245,15 @@ public:
             } else {
                 try{
                     std::uninitialized_copy_n(begin(), num_position, new_data.GetAddress());
+                }catch(...){
+                    std::destroy_n(new_data + num_position, 1);
+                    throw;
+                }
+                try{
                     std::uninitialized_copy_n(begin() + num_position, size_ - num_position, new_data + num_position + 1);
                 }catch(...){
-                    new_data.~RawMemory();
+                    std::destroy_n(new_data.GetAddress(), num_position);
+                    std::destroy_n(new_data + num_position, 1);
                     throw;
                 }
             }
